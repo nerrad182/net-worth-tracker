@@ -177,12 +177,13 @@ net_worth_growth_abs = current_net_worth - start_net_worth
 net_worth_growth_pct = (net_worth_growth_abs / start_net_worth) * 100 if start_net_worth != 0 else 0
 
 # --- MASTER NAVIGATION TABS ---
+# Adding key="main_navigation_tabs" forces Streamlit to persist the active tab state across reruns!
 tab_dash, tab_editor, tab_sheet, tab_categories = st.tabs([
     "🏆 Interactive Dashboard", 
     "✏_ Update Monthly Figures", 
     "📋 Spreadsheet Database",
     "⚙️ Manage Categories"
-])
+], key="main_navigation_tabs")
 
 # ==========================================
 # TAB 1: INTERACTIVE DASHBOARD VIEW
