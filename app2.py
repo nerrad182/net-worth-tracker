@@ -52,7 +52,6 @@ months = [
 ]
 
 # --- REPLICATE EXACT USER SPREADSHEET DATA ---
-# This matches the user's specific items and values perfectly from the provided spreadsheet image!
 default_data = {
     # Assets: Cash & Bank
     "Cash & Bank Accounts (Generic)": [2896.01, 966.69, 966.69, 966.69, 966.69, 457.14, 34.24, 442.16, 0.0, 0.0, 0.0, 0.0, 0.0],
@@ -141,7 +140,6 @@ df = st.session_state.financial_data
 st.sidebar.title("💰 Tracker Navigation")
 
 # Persistent Navigation Option inside the Sidebar!
-# Consolidated Category Manager directly into monthly edit tab to reduce navigation clutter
 selected_tab = st.sidebar.radio(
     "Choose Active View:",
     [
@@ -290,7 +288,6 @@ if selected_tab == "🏆 Interactive Dashboard":
         view_mode_assets = st.radio("Asset Chart View:", ["By Macro Category Class", "By Individual Accounts"], horizontal=True, key="asset_chart_toggle")
         
         if view_mode_assets == "By Macro Category Class":
-            # Grouping dynamically by active groups
             group_sums = {}
             for key in assets_keys:
                 grp = st.session_state.item_types.get(key, "Other Assets")
@@ -358,11 +355,11 @@ if selected_tab == "🏆 Interactive Dashboard":
                 st.info("No active Liability values to display.")
 
 # ==========================================
-# PAGE VIEW 2: MONTH-BY-MONTH DATA EDITOR (WITH INTEGRATED CATEGORY MANAGER)
+# PAGE VIEW 2: MONTH-BY-MONTH DATA EDITOR (WITH INTEGRATED CATEGORY MANAGER & INLINE RENAMING)
 # ==========================================
 elif selected_tab == "✏️ Update Monthly Figures":
     st.markdown("### ✏️ Update Financial Entry Logs")
-    st.markdown("Your categories are grouped below. Select a month and expand any classification drawer to adjust figures.")
+    st.markdown("Your categories are grouped below. Select a month to adjust individual items. You can also rename accounts directly beside their values.")
     
     # -------------------------------------------------------------
     # INTEGRATED ACCOUNT & CATEGORY MANAGER (IN COLLAPSIBLE DRAWER)
@@ -398,7 +395,6 @@ elif selected_tab == "✏️ Update Monthly Figures":
                     
         with col_remove:
             st.markdown("##### 🗑️ Remove Existing Account/Category")
-            # Display list of user's active custom keys
             available_categories = list(st.session_state.item_types.keys())
             category_to_delete = st.selectbox("Select Account/Category to Delete:", available_categories, key="del_cat_select")
             
@@ -424,51 +420,66 @@ elif selected_tab == "✏️ Update Monthly Figures":
     with st.form(key=f"editor_form_{selected_month}"):
         form_col1, form_col2 = st.columns(2)
         
-        updated_assets = {}
-        updated_liabs = {}
-        
         with form_col1:
             st.markdown("#### 🏦 Cash & Asset Inputs (By Category)")
+            
+            # Helper for layout column headers
+            def render_row_headers():
+                header_name, header_val = st.columns([3, 2])
+                header_name.caption("**✏️ Edit Account Name**")
+                header_val.caption(f"**💰 Balance ({currency})**")
             
             # Group A: Cash
             cash_items = [k for k in assets_keys if st.session_state.item_types.get(k) == "Cash"]
             if cash_items:
                 with st.expander("💵 Cash & Liquid Accounts", expanded=True):
+                    render_row_headers()
                     for item in cash_items:
-                        current_val = float(df.at[item, selected_month]) if item in df.index else 0.0
-                        updated_assets[item] = st.number_input(
-                            f"{item} ({currency})", value=current_val, step=100.0, key=f"edit_asset_{item}"
-                        )
+                        col_name, col_val = st.columns([3, 2])
+                        with col_name:
+                            st.text_input("Name", value=item, key=f"rename_input_{item}_{selected_month}", label_visibility="collapsed")
+                        with col_val:
+                            current_val = float(df.at[item, selected_month]) if item in df.index else 0.0
+                            st.number_input("Value", value=current_val, step=100.0, key=f"amount_input_{item}_{selected_month}", label_visibility="collapsed")
             
             # Group B: Investments
             inv_items = [k for k in assets_keys if st.session_state.item_types.get(k) == "Investments"]
             if inv_items:
                 with st.expander("📈 Long-Term Investments", expanded=True):
+                    render_row_headers()
                     for item in inv_items:
-                        current_val = float(df.at[item, selected_month]) if item in df.index else 0.0
-                        updated_assets[item] = st.number_input(
-                            f"{item} ({currency})", value=current_val, step=100.0, key=f"edit_asset_{item}"
-                        )
+                        col_name, col_val = st.columns([3, 2])
+                        with col_name:
+                            st.text_input("Name", value=item, key=f"rename_input_{item}_{selected_month}", label_visibility="collapsed")
+                        with col_val:
+                            current_val = float(df.at[item, selected_month]) if item in df.index else 0.0
+                            st.number_input("Value", value=current_val, step=100.0, key=f"amount_input_{item}_{selected_month}", label_visibility="collapsed")
             
             # Group C: Retirement
             ret_items = [k for k in assets_keys if st.session_state.item_types.get(k) == "Retirement/EPF"]
             if ret_items:
                 with st.expander("👴 Retirement Savings (EPF)", expanded=True):
+                    render_row_headers()
                     for item in ret_items:
-                        current_val = float(df.at[item, selected_month]) if item in df.index else 0.0
-                        updated_assets[item] = st.number_input(
-                            f"{item} ({currency})", value=current_val, step=100.0, key=f"edit_asset_{item}"
-                        )
+                        col_name, col_val = st.columns([3, 2])
+                        with col_name:
+                            st.text_input("Name", value=item, key=f"rename_input_{item}_{selected_month}", label_visibility="collapsed")
+                        with col_val:
+                            current_val = float(df.at[item, selected_month]) if item in df.index else 0.0
+                            st.number_input("Value", value=current_val, step=100.0, key=f"amount_input_{item}_{selected_month}", label_visibility="collapsed")
             
             # Group D: Properties & Others
             other_ast_items = [k for k in assets_keys if st.session_state.item_types.get(k) in ["Properties", "Other Assets"]]
             if other_ast_items:
                 with st.expander("🏡 Real Estate & Tangible Assets", expanded=False):
+                    render_row_headers()
                     for item in other_ast_items:
-                        current_val = float(df.at[item, selected_month]) if item in df.index else 0.0
-                        updated_assets[item] = st.number_input(
-                            f"{item} ({currency})", value=current_val, step=100.0, key=f"edit_asset_{item}"
-                        )
+                        col_name, col_val = st.columns([3, 2])
+                        with col_name:
+                            st.text_input("Name", value=item, key=f"rename_input_{item}_{selected_month}", label_visibility="collapsed")
+                        with col_val:
+                            current_val = float(df.at[item, selected_month]) if item in df.index else 0.0
+                            st.number_input("Value", value=current_val, step=100.0, key=f"amount_input_{item}_{selected_month}", label_visibility="collapsed")
                         
         with form_col2:
             st.markdown("#### 💳 Outstanding Liabilities (By Category)")
@@ -477,43 +488,89 @@ elif selected_tab == "✏️ Update Monthly Figures":
             st_debt_items = [k for k in liabilities_keys if st.session_state.item_types.get(k) == "Short-Term Debts"]
             if st_debt_items:
                 with st.expander("📱 Short-Term Liabilities & Bills", expanded=True):
+                    render_row_headers()
                     for item in st_debt_items:
-                        current_val = float(df.at[item, selected_month]) if item in df.index else 0.0
-                        updated_liabs[item] = st.number_input(
-                            f"{item} ({currency})", value=current_val, step=100.0, key=f"edit_liab_{item}"
-                        )
+                        col_name, col_val = st.columns([3, 2])
+                        with col_name:
+                            st.text_input("Name", value=item, key=f"rename_input_{item}_{selected_month}", label_visibility="collapsed")
+                        with col_val:
+                            current_val = float(df.at[item, selected_month]) if item in df.index else 0.0
+                            st.number_input("Value", value=current_val, step=100.0, key=f"amount_input_{item}_{selected_month}", label_visibility="collapsed")
             
             # Group B: Long-Term Debts
             lt_debt_items = [k for k in liabilities_keys if st.session_state.item_types.get(k) == "Long-Term Debts"]
             if lt_debt_items:
                 with st.expander("🏠 Long-Term Structured Debts", expanded=True):
+                    render_row_headers()
                     for item in lt_debt_items:
-                        current_val = float(df.at[item, selected_month]) if item in df.index else 0.0
-                        updated_liabs[item] = st.number_input(
-                            f"{item} ({currency})", value=current_val, step=100.0, key=f"edit_liab_{item}"
-                        )
+                        col_name, col_val = st.columns([3, 2])
+                        with col_name:
+                            st.text_input("Name", value=item, key=f"rename_input_{item}_{selected_month}", label_visibility="collapsed")
+                        with col_val:
+                            current_val = float(df.at[item, selected_month]) if item in df.index else 0.0
+                            st.number_input("Value", value=current_val, step=100.0, key=f"amount_input_{item}_{selected_month}", label_visibility="collapsed")
             
             # Group C: Other Liabilities
             other_liab_items = [k for k in liabilities_keys if st.session_state.item_types.get(k) == "Other Liabilities"]
             if other_liab_items:
                 with st.expander("🛑 Other Miscellaneous Debts", expanded=False):
+                    render_row_headers()
                     for item in other_liab_items:
-                        current_val = float(df.at[item, selected_month]) if item in df.index else 0.0
-                        updated_liabs[item] = st.number_input(
-                            f"{item} ({currency})", value=current_val, step=100.0, key=f"edit_liab_{item}"
-                        )
+                        col_name, col_val = st.columns([3, 2])
+                        with col_name:
+                            st.text_input("Name", value=item, key=f"rename_input_{item}_{selected_month}", label_visibility="collapsed")
+                        with col_val:
+                            current_val = float(df.at[item, selected_month]) if item in df.index else 0.0
+                            st.number_input("Value", value=current_val, step=100.0, key=f"amount_input_{item}_{selected_month}", label_visibility="collapsed")
                 
         # Submit updates
-        submit_btn = st.form_submit_button(label="💾 Save Values and Rerun Calculations")
+        submit_btn = st.form_submit_button(label="💾 Save Account Names & Values")
         
         if submit_btn:
-            # Inject form values back into active state dataframe
-            for k, v in updated_assets.items():
-                st.session_state.financial_data.at[k, selected_month] = v
-            for k, v in updated_liabs.items():
-                st.session_state.financial_data.at[k, selected_month] = v
+            # 1. Gather all raw inputs from the session_state
+            renames_to_apply = {}
+            values_to_apply = {}
             
-            st.success(f"Successfully recorded all financial logging adjustments for {selected_month}!")
+            all_items = list(assets_keys) + list(liabilities_keys)
+            for item in all_items:
+                new_name = st.session_state.get(f"rename_input_{item}_{selected_month}", item).strip()
+                new_val = st.session_state.get(f"amount_input_{item}_{selected_month}", 0.0)
+                
+                renames_to_apply[item] = new_name
+                values_to_apply[item] = new_val
+            
+            # 2. Check for validation errors (Empty names or duplicates)
+            seen_names = set()
+            for old_name, new_name in renames_to_apply.items():
+                if new_name == "":
+                    st.error(f"Account name cannot be empty! (Error on: '{old_name}')")
+                    st.stop()
+                if new_name in seen_names:
+                    st.error(f"Duplicate account name detected: '{new_name}'! Every account must have a unique name.")
+                    st.stop()
+                seen_names.add(new_name)
+            
+            # 3. Apply changes systematically to DataFrame copy
+            current_df = st.session_state.financial_data.copy()
+            current_item_types = st.session_state.item_types.copy()
+            
+            # First pass: Rename index rows
+            for old_name, new_name in renames_to_apply.items():
+                if old_name != new_name:
+                    current_df = current_df.rename(index={old_name: new_name})
+                    if old_name in current_item_types:
+                        val_type = current_item_types.pop(old_name)
+                        current_item_types[new_name] = val_type
+            
+            # Second pass: Save numerical values to the updated index names
+            for old_name, new_name in renames_to_apply.items():
+                current_df.at[new_name, selected_month] = values_to_apply[old_name]
+            
+            # Save variables back to persistent session states
+            st.session_state.financial_data = current_df
+            st.session_state.item_types = current_item_types
+            
+            st.success(f"Successfully saved and updated your values and account names for {selected_month}!")
             st.rerun()
 
 # ==========================================
@@ -553,7 +610,6 @@ elif selected_tab == "📋 Spreadsheet Database":
     ledger_matrix = pd.concat([summary_rows, display_df])
     
     # Style and format cell numerical data for professional visualization
-    # We must skip formatting the string 'Class' column in our lambda statement
     formatted_matrix = ledger_matrix.style.format(lambda val: f"{val:,.2f}" if isinstance(val, (int, float)) else str(val))
     
     # Display the grid on the screen
