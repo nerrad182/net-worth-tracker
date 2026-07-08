@@ -129,7 +129,6 @@ default_item_types = {
 }
 
 # --- STATE INITIALIZATION ---
-# We store both the data table and the item categories in session state memory so they can be modified dynamically
 if "financial_data" not in st.session_state:
     st.session_state.financial_data = pd.DataFrame(default_data, index=months).T
 if "item_types" not in st.session_state:
@@ -177,10 +176,9 @@ net_worth_growth_abs = current_net_worth - start_net_worth
 net_worth_growth_pct = (net_worth_growth_abs / start_net_worth) * 100 if start_net_worth != 0 else 0
 
 # --- MASTER NAVIGATION TABS ---
-# Adding key="main_navigation_tabs" forces Streamlit to persist the active tab state across reruns!
 tab_dash, tab_editor, tab_sheet, tab_categories = st.tabs([
     "🏆 Interactive Dashboard", 
-    "✏_ Update Monthly Figures", 
+    "✏️ Update Monthly Figures", 
     "📋 Spreadsheet Database",
     "⚙️ Manage Categories"
 ], key="main_navigation_tabs")
@@ -274,56 +272,88 @@ with tab_dash:
     st.divider()
 
     # Graphical Charts Row 2 (Breakdown Analysis)
-    c_col1, c_col2 = st.columns([1, 1])
+    c_col1, c_col2 = st.columns(2)
     
     with c_col1:
         st.markdown(f"#### 🍩 Asset Distribution Breakdown ({current_month})")
-        # Build category distribution for pie chart
-        asset_distribution = {}
-        for key in assets_keys:
-            val = df.at[key, current_month]
-            if val > 0:
-                asset_distribution[key] = val
-                
-        if asset_distribution:
-            df_pie = pd.DataFrame(list(asset_distribution.items()), columns=["Category", "Amount"])
-            fig_pie = px.pie(
-                df_pie, values="Amount", names="Category",
-                hole=0.45,
-                color_discrete_sequence=px.colors.qualitative.Pastel
-            )
-            fig_pie.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=380)
-            st.plotly_chart(fig_pie, use_container_width=True)
+        
+        # User selection to toggle detailed account vs macro class views!
+        view_mode_assets = st.radio("Asset Chart View:", ["By Macro Category Class", "By Individual Accounts"], horizontal=True, key="asset_chart_toggle")
+        
+        if view_mode_assets == "By Macro Category Class":
+            # Grouping dynamically by active groups
+            group_sums = {}
+            for key in assets_keys:
+                grp = st.session_state.item_types.get(key, "Other Assets")
+                val = df.at[key, current_month]
+                if val > 0:
+                    group_sums[grp] = group_sums.get(grp, 0.0) + val
+            
+            if group_sums:
+                df_pie = pd.DataFrame(list(group_sums.items()), columns=["Category Class", "Amount"])
+                fig_pie = px.pie(
+                    df_pie, values="Amount", names="Category Class",
+                    hole=0.45, color_discrete_sequence=px.colors.qualitative.Pastel
+                )
+                fig_pie.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=320)
+                st.plotly_chart(fig_pie, use_container_width=True)
+            else:
+                st.info("No active Asset values to display.")
         else:
-            st.info("No active Asset values to display.")
+            asset_distribution = {k: df.at[k, current_month] for k in assets_keys if df.at[k, current_month] > 0}
+            if asset_distribution:
+                df_pie = pd.DataFrame(list(asset_distribution.items()), columns=["Account", "Amount"])
+                fig_pie = px.pie(
+                    df_pie, values="Amount", names="Account",
+                    hole=0.45, color_discrete_sequence=px.colors.qualitative.Pastel
+                )
+                fig_pie.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=320)
+                st.plotly_chart(fig_pie, use_container_width=True)
+            else:
+                st.info("No active Asset values to display.")
 
     with c_col2:
         st.markdown(f"#### 🧾 Liabilities Class Breakdown ({current_month})")
-        # Build liability category breakdown
-        liab_distribution = {}
-        for key in liabilities_keys:
-            val = df.at[key, current_month]
-            if val > 0:
-                liab_distribution[key] = val
-                
-        if liab_distribution:
-            df_liab_pie = pd.DataFrame(list(liab_distribution.items()), columns=["Category", "Amount"])
-            fig_liab_pie = px.pie(
-                df_liab_pie, values="Amount", names="Category",
-                hole=0.45,
-                color_discrete_sequence=px.colors.qualitative.Safe
-            )
-            fig_liab_pie.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=380)
-            st.plotly_chart(fig_liab_pie, use_container_width=True)
+        
+        view_mode_liabs = st.radio("Liability Chart View:", ["By Macro Category Class", "By Individual Accounts"], horizontal=True, key="liab_chart_toggle")
+        
+        if view_mode_liabs == "By Macro Category Class":
+            group_sums = {}
+            for key in liabilities_keys:
+                grp = st.session_state.item_types.get(key, "Other Liabilities")
+                val = df.at[key, current_month]
+                if val > 0:
+                    group_sums[grp] = group_sums.get(grp, 0.0) + val
+            
+            if group_sums:
+                df_liab_pie = pd.DataFrame(list(group_sums.items()), columns=["Category Class", "Amount"])
+                fig_liab_pie = px.pie(
+                    df_liab_pie, values="Amount", names="Category Class",
+                    hole=0.45, color_discrete_sequence=px.colors.qualitative.Safe
+                )
+                fig_liab_pie.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=320)
+                st.plotly_chart(fig_liab_pie, use_container_width=True)
+            else:
+                st.info("No active Liability values to display.")
         else:
-            st.info("No active Liability values to display.")
+            liab_distribution = {k: df.at[k, current_month] for k in liabilities_keys if df.at[k, current_month] > 0}
+            if liab_distribution:
+                df_liab_pie = pd.DataFrame(list(liab_distribution.items()), columns=["Account", "Amount"])
+                fig_liab_pie = px.pie(
+                    df_liab_pie, values="Amount", names="Account",
+                    hole=0.45, color_discrete_sequence=px.colors.qualitative.Safe
+                )
+                fig_liab_pie.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=320)
+                st.plotly_chart(fig_liab_pie, use_container_width=True)
+            else:
+                st.info("No active Liability values to display.")
 
 # ==========================================
-# TAB 2: MONTH-BY-MONTH DATA EDITOR
+# TAB 2: MONTH-BY-MONTH DATA EDITOR (GROUPED CATEGORIES)
 # ==========================================
 with tab_editor:
     st.markdown("### ✏️ Update Financial Entry Logs")
-    st.markdown("Choose a calendar column below to adjust individual asset bank savings, investment returns, or liability balances.")
+    st.markdown("Your categories are grouped below. Select a month and expand any classification drawer to adjust figures.")
     
     # 1. Month Picker
     selected_month = st.selectbox("Select Target Month to Edit:", months)
@@ -334,29 +364,84 @@ with tab_editor:
     with st.form(key=f"editor_form_{selected_month}"):
         form_col1, form_col2 = st.columns(2)
         
+        updated_assets = {}
+        updated_liabs = {}
+        
         with form_col1:
-            st.markdown("#### 🏦 Cash & Asset Inputs")
-            updated_assets = {}
-            for item in assets_keys:
-                current_val = float(df.at[item, selected_month]) if item in df.index else 0.0
-                updated_assets[item] = st.number_input(
-                    f"{item} ({currency})", 
-                    value=current_val, 
-                    step=100.0,
-                    key=f"edit_asset_{item}"
-                )
-                
+            st.markdown("#### 🏦 Cash & Asset Inputs (By Category)")
+            
+            # Group A: Cash
+            cash_items = [k for k in assets_keys if st.session_state.item_types.get(k) == "Cash"]
+            if cash_items:
+                with st.expander("💵 Cash & Liquid Accounts", expanded=True):
+                    for item in cash_items:
+                        current_val = float(df.at[item, selected_month]) if item in df.index else 0.0
+                        updated_assets[item] = st.number_input(
+                            f"{item} ({currency})", value=current_val, step=100.0, key=f"edit_asset_{item}"
+                        )
+            
+            # Group B: Investments
+            inv_items = [k for k in assets_keys if st.session_state.item_types.get(k) == "Investments"]
+            if inv_items:
+                with st.expander("📈 Long-Term Investments", expanded=True):
+                    for item in inv_items:
+                        current_val = float(df.at[item, selected_month]) if item in df.index else 0.0
+                        updated_assets[item] = st.number_input(
+                            f"{item} ({currency})", value=current_val, step=100.0, key=f"edit_asset_{item}"
+                        )
+            
+            # Group C: Retirement
+            ret_items = [k for k in assets_keys if st.session_state.item_types.get(k) == "Retirement/EPF"]
+            if ret_items:
+                with st.expander("👴 Retirement Savings (EPF)", expanded=True):
+                    for item in ret_items:
+                        current_val = float(df.at[item, selected_month]) if item in df.index else 0.0
+                        updated_assets[item] = st.number_input(
+                            f"{item} ({currency})", value=current_val, step=100.0, key=f"edit_asset_{item}"
+                        )
+            
+            # Group D: Properties & Others
+            other_ast_items = [k for k in assets_keys if st.session_state.item_types.get(k) in ["Properties", "Other Assets"]]
+            if other_ast_items:
+                with st.expander("🏡 Real Estate & Tangible Assets", expanded=False):
+                    for item in other_ast_items:
+                        current_val = float(df.at[item, selected_month]) if item in df.index else 0.0
+                        updated_assets[item] = st.number_input(
+                            f"{item} ({currency})", value=current_val, step=100.0, key=f"edit_asset_{item}"
+                        )
+                        
         with form_col2:
-            st.markdown("#### 💳 Outstanding Liabilities")
-            updated_liabs = {}
-            for item in liabilities_keys:
-                current_val = float(df.at[item, selected_month]) if item in df.index else 0.0
-                updated_liabs[item] = st.number_input(
-                    f"{item} ({currency})", 
-                    value=current_val, 
-                    step=100.0,
-                    key=f"edit_liab_{item}"
-                )
+            st.markdown("#### 💳 Outstanding Liabilities (By Category)")
+            
+            # Group A: Short-Term Debts
+            st_debt_items = [k for k in liabilities_keys if st.session_state.item_types.get(k) == "Short-Term Debts"]
+            if st_debt_items:
+                with st.expander("📱 Short-Term Liabilities & Bills", expanded=True):
+                    for item in st_debt_items:
+                        current_val = float(df.at[item, selected_month]) if item in df.index else 0.0
+                        updated_liabs[item] = st.number_input(
+                            f"{item} ({currency})", value=current_val, step=100.0, key=f"edit_liab_{item}"
+                        )
+            
+            # Group B: Long-Term Debts
+            lt_debt_items = [k for k in liabilities_keys if st.session_state.item_types.get(k) == "Long-Term Debts"]
+            if lt_debt_items:
+                with st.expander("🏠 Long-Term Structured Debts", expanded=True):
+                    for item in lt_debt_items:
+                        current_val = float(df.at[item, selected_month]) if item in df.index else 0.0
+                        updated_liabs[item] = st.number_input(
+                            f"{item} ({currency})", value=current_val, step=100.0, key=f"edit_liab_{item}"
+                        )
+            
+            # Group C: Other Liabilities
+            other_liab_items = [k for k in liabilities_keys if st.session_state.item_types.get(k) == "Other Liabilities"]
+            if other_liab_items:
+                with st.expander("🛑 Other Miscellaneous Debts", expanded=False):
+                    for item in other_liab_items:
+                        current_val = float(df.at[item, selected_month]) if item in df.index else 0.0
+                        updated_liabs[item] = st.number_input(
+                            f"{item} ({currency})", value=current_val, step=100.0, key=f"edit_liab_{item}"
+                        )
                 
         # Submit updates
         submit_btn = st.form_submit_button(label="💾 Save Values and Rerun Calculations")
@@ -372,14 +457,29 @@ with tab_editor:
             st.rerun()
 
 # ==========================================
-# TAB 3: COMPLETE SPREADSHEET MATRIX VIEW
+# TAB 3: COMPLETE SPREADSHEET MATRIX VIEW (SORTED BY CATEGORY)
 # ==========================================
 with tab_sheet:
     st.markdown("### 📋 Full Financial Ledger Spreadsheet Matrix")
-    st.markdown("Your entire asset portfolio and liabilities distribution tracked side by side.")
+    st.markdown("Your entire asset portfolio and liabilities organized beautifully by dynamic classes.")
     
     # Render interactive DataFrame matching the structures of your spreadsheet
     display_df = df.copy()
+    
+    # Inject temporary sorting class column
+    display_df['Class'] = display_df.index.map(st.session_state.item_types)
+    
+    # Establish dynamic sorting list order
+    group_order = [
+        "Cash", "Investments", "Retirement/EPF", "Properties", "Other Assets", 
+        "Short-Term Debts", "Long-Term Debts", "Other Liabilities"
+    ]
+    display_df['Class'] = pd.Categorical(display_df['Class'], categories=group_order, ordered=True)
+    display_df = display_df.sort_values('Class')
+    
+    # Pull Class column to the front visually
+    cols = ['Class'] + [col for col in display_df.columns if col != 'Class']
+    display_df = display_df[cols]
     
     # Append calculated Net Worth, Total Assets, Total Liabilities summaries dynamically
     summary_rows = pd.DataFrame({
@@ -387,11 +487,14 @@ with tab_sheet:
         "Total Liabilities": total_liabs_series,
         "Calculated Net Worth": net_worth_series
     }).T
+    summary_rows['Class'] = "📊 Summary Header"
+    summary_rows = summary_rows[cols]
     
     ledger_matrix = pd.concat([summary_rows, display_df])
     
     # Style and format cell numerical data for professional visualization
-    formatted_matrix = ledger_matrix.style.format("{:,.2f}")
+    # We must skip formatting the string 'Class' column in our lambda statement
+    formatted_matrix = ledger_matrix.style.format(lambda val: f"{val:,.2f}" if isinstance(val, (int, float)) else str(val))
     
     # Display the grid on the screen
     st.dataframe(formatted_matrix, use_container_width=True, height=600)
@@ -406,7 +509,7 @@ with tab_sheet:
     )
 
 # ==========================================
-# TAB 4: CATEGORY MANAGER PANEL (NEW)
+# TAB 4: CATEGORY MANAGER PANEL
 # ==========================================
 with tab_categories:
     st.markdown("### ⚙️ Live Account & Category Manager")
