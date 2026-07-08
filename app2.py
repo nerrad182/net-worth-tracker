@@ -141,13 +141,13 @@ df = st.session_state.financial_data
 st.sidebar.title("💰 Tracker Navigation")
 
 # Persistent Navigation Option inside the Sidebar!
+# Consolidated Category Manager directly into monthly edit tab to reduce navigation clutter
 selected_tab = st.sidebar.radio(
     "Choose Active View:",
     [
         "🏆 Interactive Dashboard", 
         "✏️ Update Monthly Figures", 
-        "📋 Spreadsheet Database",
-        "⚙️ Manage Categories"
+        "📋 Spreadsheet Database"
     ],
     index=0,
     key="sidebar_navigation_menu"
@@ -358,18 +358,69 @@ if selected_tab == "🏆 Interactive Dashboard":
                 st.info("No active Liability values to display.")
 
 # ==========================================
-# PAGE VIEW 2: MONTH-BY-MONTH DATA EDITOR (GROUPED CATEGORIES)
+# PAGE VIEW 2: MONTH-BY-MONTH DATA EDITOR (WITH INTEGRATED CATEGORY MANAGER)
 # ==========================================
 elif selected_tab == "✏️ Update Monthly Figures":
     st.markdown("### ✏️ Update Financial Entry Logs")
     st.markdown("Your categories are grouped below. Select a month and expand any classification drawer to adjust figures.")
     
-    # 1. Month Picker (Changing this will now NOT bounce you back to the dashboard!)
+    # -------------------------------------------------------------
+    # INTEGRATED ACCOUNT & CATEGORY MANAGER (IN COLLAPSIBLE DRAWER)
+    # -------------------------------------------------------------
+    with st.expander("⚙️ Manage Accounts & Categories (Add or Delete Items)", expanded=False):
+        st.markdown("Easily add new cash accounts, cards, and investments, or remove them from your active balance sheet instantly.")
+        col_add, col_remove = st.columns(2)
+        
+        with col_add:
+            st.markdown("##### ➕ Add New Account/Category")
+            new_name = st.text_input("Name of Account/Asset/Debt (e.g., 'Bitcoin Wallet', 'My Home'):", key="add_cat_input")
+            new_group = st.selectbox(
+                "Account Classification Group:",
+                ["Cash", "Investments", "Retirement/EPF", "Properties", "Other Assets", "Short-Term Debts", "Long-Term Debts", "Other Liabilities"],
+                key="add_cat_select"
+            )
+            
+            if st.button("🚀 Add New Category", use_container_width=True, key="add_cat_btn"):
+                cleaned_name = new_name.strip()
+                if not cleaned_name:
+                    st.error("Please enter a valid category name!")
+                elif cleaned_name in st.session_state.financial_data.index:
+                    st.error("An account with this name already exists in your table.")
+                else:
+                    # 1. Create a row of zero inputs mapping across all months
+                    new_row = pd.Series([0.0] * len(months), index=months, name=cleaned_name)
+                    # 2. Add it directly into our persistent DataFrame
+                    st.session_state.financial_data = pd.concat([st.session_state.financial_data, pd.DataFrame([new_row])])
+                    # 3. Add classification
+                    st.session_state.item_types[cleaned_name] = new_group
+                    st.success(f"Successfully added '{cleaned_name}' to your dashboard as a {new_group}!")
+                    st.rerun()
+                    
+        with col_remove:
+            st.markdown("##### 🗑️ Remove Existing Account/Category")
+            # Display list of user's active custom keys
+            available_categories = list(st.session_state.item_types.keys())
+            category_to_delete = st.selectbox("Select Account/Category to Delete:", available_categories, key="del_cat_select")
+            
+            st.warning("⚠️ Warning: Deleting an item will permanently remove it from the sheet and wipe out any of its recorded history!")
+            
+            if st.button("🔥 Permanently Delete Category", use_container_width=True, key="del_cat_btn"):
+                if category_to_delete:
+                    # 1. Remove the key from item classifications
+                    st.session_state.item_types.pop(category_to_delete)
+                    # 2. Drop the row from the data table
+                    st.session_state.financial_data = st.session_state.financial_data.drop(category_to_delete)
+                    st.success(f"Successfully deleted '{category_to_delete}' from your tracker.")
+                    st.rerun()
+                    
+    st.divider()
+    
+    # Month Picker
     selected_month = st.selectbox("Select Target Month to Edit:", months)
     
     st.divider()
     
-    # 2. Split layout for asset categories & liability categories inside the form editor
+    # Split layout for asset categories & liability categories inside the form editor
     with st.form(key=f"editor_form_{selected_month}"):
         form_col1, form_col2 = st.columns(2)
         
@@ -516,60 +567,3 @@ elif selected_tab == "📋 Spreadsheet Database":
         file_name="My_Personal_Net_Worth_Tracker.csv",
         mime="text/csv"
     )
-
-# ==========================================
-# PAGE VIEW 4: CATEGORY MANAGER PANEL
-# ==========================================
-elif selected_tab == "⚙️ Manage Categories":
-    st.markdown("### ⚙️ Live Account & Category Manager")
-    st.markdown("Easily add new cash accounts, cards, and investments, or remove them from your active balance sheet instantly.")
-    
-    col_add, col_remove = st.columns(2)
-    
-    with col_add:
-        st.markdown("#### ➕ Add New Account/Category")
-        new_name = st.text_input("Name of Account/Asset/Debt (e.g., 'Bitcoin Wallet', 'My Home'):")
-        
-        new_group = st.selectbox(
-            "Account Classification Group:",
-            ["Cash", "Investments", "Retirement/EPF", "Properties", "Other Assets", "Short-Term Debts", "Long-Term Debts", "Other Liabilities"]
-        )
-        
-        if st.button("🚀 Add New Category", use_container_width=True):
-            cleaned_name = new_name.strip()
-            if not cleaned_name:
-                st.error("Please enter a valid category name!")
-            elif cleaned_name in st.session_state.financial_data.index:
-                st.error("An account with this name already exists in your table.")
-            else:
-                # 1. Create a row of zero inputs mapping across all months
-                new_row = pd.Series([0.0] * len(months), index=months, name=cleaned_name)
-                
-                # 2. Add it directly into our persistent DataFrame
-                st.session_state.financial_data = pd.concat([st.session_state.financial_data, pd.DataFrame([new_row])])
-                
-                # 3. Add classification
-                st.session_state.item_types[cleaned_name] = new_group
-                
-                st.success(f"Successfully added '{cleaned_name}' to your dashboard as a {new_group}!")
-                st.rerun()
-                
-    with col_remove:
-        st.markdown("#### 🗑️ Remove Existing Account/Category")
-        
-        # Display list of user's active custom keys
-        available_categories = list(st.session_state.item_types.keys())
-        category_to_delete = st.selectbox("Select Account/Category to Delete:", available_categories)
-        
-        st.warning("⚠️ Warning: Deleting an item will permanently remove it from the sheet and wipe out any of its recorded history!")
-        
-        if st.button("🔥 Permanently Delete Category", use_container_width=True):
-            if category_to_delete:
-                # 1. Remove the key from item classifications
-                st.session_state.item_types.pop(category_to_delete)
-                
-                # 2. Drop the row from the data table
-                st.session_state.financial_data = st.session_state.financial_data.drop(category_to_delete)
-                
-                st.success(f"Successfully deleted '{category_to_delete}' from your tracker.")
-                st.rerun()
