@@ -69,7 +69,7 @@ default_data = {
     "Principal CIMB": [11135.16, 13734.59, 13734.59, 13734.59, 13734.59, 15642.31, 16275.17, 16740.91, 0.0, 0.0, 0.0, 0.0, 0.0],
     "ASB Financing (Asset)": [100000.00, 131156.63, 131156.63, 131156.63, 131156.63, 131156.63, 131156.63, 131156.63, 0.0, 0.0, 0.0, 0.0, 0.0],
     "Quantum Gold": [11.03, 23.40, 23.40, 23.40, 23.40, 22.22, 20.82, 20.69, 0.0, 0.0, 0.0, 0.0, 0.0],
-    "TnG": [2196.47, 3043.16, 3043.16, 3043.16, 3043.16, 992.68, 4188.74, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], # Corrected: Added trailing 0.0 to match the 13-month calendar index
+    "TnG": [2196.47, 3043.16, 3043.16, 3043.16, 3043.16, 992.68, 4188.74, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
     "Rakuten": [95.48, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
     "Versa": [462.24, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
     "Shopee Money+": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 2645.10, 0.0, 0.0, 0.0, 0.0, 0.0],
@@ -93,7 +93,7 @@ default_data = {
 }
 
 # Maintain classification categorizations
-item_types = {
+default_item_types = {
     # Assets
     "Cash & Bank Accounts (Generic)": "Cash",
     "Cash & Emergency Fund (RHB 1)": "Cash",
@@ -129,28 +129,32 @@ item_types = {
 }
 
 # --- STATE INITIALIZATION ---
+# We store both the data table and the item categories in session state memory so they can be modified dynamically
 if "financial_data" not in st.session_state:
     st.session_state.financial_data = pd.DataFrame(default_data, index=months).T
+if "item_types" not in st.session_state:
+    st.session_state.item_types = default_item_types.copy()
 
 # Prepare variables for quick access
 df = st.session_state.financial_data
 
-# Sidebar Settings
+# Sidebar Controls
 st.sidebar.title("⚙️ Dashboard Controls")
 currency = st.sidebar.selectbox("Currency Unit", ["RM", "$", "€", "£"], index=0)
 
 if st.sidebar.button("🔄 Reset to Default Template Data"):
     st.session_state.financial_data = pd.DataFrame(default_data, index=months).T
+    st.session_state.item_types = default_item_types.copy()
     st.rerun()
 
 # --- CALCULATING TOTALS & GROWTH ---
-# Dynamically separate assets vs liabilities based on classification
-assets_keys = [k for k, t in item_types.items() if t in ["Cash", "Investments", "Retirement/EPF", "Properties", "Other Assets"]]
-liabilities_keys = [k for k, t in item_types.items() if t in ["Short-Term Debts", "Long-Term Debts", "Other Liabilities"]]
+# Dynamically separate assets vs liabilities based on user-managed categories
+assets_keys = [k for k, t in st.session_state.item_types.items() if t in ["Cash", "Investments", "Retirement/EPF", "Properties", "Other Assets"]]
+liabilities_keys = [k for k, t in st.session_state.item_types.items() if t in ["Short-Term Debts", "Long-Term Debts", "Other Liabilities"]]
 
 # Calculate sums for every month
-total_assets_series = df.loc[assets_keys].sum()
-total_liabs_series = df.loc[liabilities_keys].sum()
+total_assets_series = df.loc[assets_keys].sum() if assets_keys else pd.Series(0.0, index=months)
+total_liabs_series = df.loc[liabilities_keys].sum() if liabilities_keys else pd.Series(0.0, index=months)
 net_worth_series = total_assets_series - total_liabs_series
 
 # Locate current active month (latest month with inputs / non-zero values)
@@ -164,18 +168,21 @@ current_net_worth = net_worth_series[current_month]
 current_assets = total_assets_series[current_month]
 current_liabs = total_liabs_series[current_month]
 
-# Start reference calculations (Usually Start 2023)
+# Start reference calculations
 start_month = months[0]
 start_net_worth = net_worth_series[start_month]
-start_assets = total_assets_series[start_month]
-start_liabs = total_liabs_series[start_month]
 
 # Absolute and Percentage Growth
 net_worth_growth_abs = current_net_worth - start_net_worth
 net_worth_growth_pct = (net_worth_growth_abs / start_net_worth) * 100 if start_net_worth != 0 else 0
 
 # --- MASTER NAVIGATION TABS ---
-tab_dash, tab_editor, tab_sheet = st.tabs(["🏆 Interactive Dashboard", "✏️ Update Monthly Figures", "📋 Spreadsheet Database"])
+tab_dash, tab_editor, tab_sheet, tab_categories = st.tabs([
+    "🏆 Interactive Dashboard", 
+    "✏_ Update Monthly Figures", 
+    "📋 Spreadsheet Database",
+    "⚙️ Manage Categories"
+])
 
 # ==========================================
 # TAB 1: INTERACTIVE DASHBOARD VIEW
@@ -225,7 +232,6 @@ with tab_dash:
             "Month": months,
             "Net Worth": net_worth_series.values
         })
-        # Highlight non-zero active values
         fig_nw = px.bar(
             nw_df, x="Month", y="Net Worth",
             text="Net Worth",
@@ -278,14 +284,17 @@ with tab_dash:
             if val > 0:
                 asset_distribution[key] = val
                 
-        df_pie = pd.DataFrame(list(asset_distribution.items()), columns=["Category", "Amount"])
-        fig_pie = px.pie(
-            df_pie, values="Amount", names="Category",
-            hole=0.45,
-            color_discrete_sequence=px.colors.qualitative.Pastel
-        )
-        fig_pie.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=380)
-        st.plotly_chart(fig_pie, use_container_width=True)
+        if asset_distribution:
+            df_pie = pd.DataFrame(list(asset_distribution.items()), columns=["Category", "Amount"])
+            fig_pie = px.pie(
+                df_pie, values="Amount", names="Category",
+                hole=0.45,
+                color_discrete_sequence=px.colors.qualitative.Pastel
+            )
+            fig_pie.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=380)
+            st.plotly_chart(fig_pie, use_container_width=True)
+        else:
+            st.info("No active Asset values to display.")
 
     with c_col2:
         st.markdown(f"#### 🧾 Liabilities Class Breakdown ({current_month})")
@@ -296,14 +305,17 @@ with tab_dash:
             if val > 0:
                 liab_distribution[key] = val
                 
-        df_liab_pie = pd.DataFrame(list(liab_distribution.items()), columns=["Category", "Amount"])
-        fig_liab_pie = px.pie(
-            df_liab_pie, values="Amount", names="Category",
-            hole=0.45,
-            color_discrete_sequence=px.colors.qualitative.Safe
-        )
-        fig_liab_pie.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=380)
-        st.plotly_chart(fig_liab_pie, use_container_width=True)
+        if liab_distribution:
+            df_liab_pie = pd.DataFrame(list(liab_distribution.items()), columns=["Category", "Amount"])
+            fig_liab_pie = px.pie(
+                df_liab_pie, values="Amount", names="Category",
+                hole=0.45,
+                color_discrete_sequence=px.colors.qualitative.Safe
+            )
+            fig_liab_pie.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=380)
+            st.plotly_chart(fig_liab_pie, use_container_width=True)
+        else:
+            st.info("No active Liability values to display.")
 
 # ==========================================
 # TAB 2: MONTH-BY-MONTH DATA EDITOR
@@ -325,7 +337,7 @@ with tab_editor:
             st.markdown("#### 🏦 Cash & Asset Inputs")
             updated_assets = {}
             for item in assets_keys:
-                current_val = float(df.at[item, selected_month])
+                current_val = float(df.at[item, selected_month]) if item in df.index else 0.0
                 updated_assets[item] = st.number_input(
                     f"{item} ({currency})", 
                     value=current_val, 
@@ -337,7 +349,7 @@ with tab_editor:
             st.markdown("#### 💳 Outstanding Liabilities")
             updated_liabs = {}
             for item in liabilities_keys:
-                current_val = float(df.at[item, selected_month])
+                current_val = float(df.at[item, selected_month]) if item in df.index else 0.0
                 updated_liabs[item] = st.number_input(
                     f"{item} ({currency})", 
                     value=current_val, 
@@ -366,7 +378,6 @@ with tab_sheet:
     st.markdown("Your entire asset portfolio and liabilities distribution tracked side by side.")
     
     # Render interactive DataFrame matching the structures of your spreadsheet
-    # Add summary calculations into display dataframe
     display_df = df.copy()
     
     # Append calculated Net Worth, Total Assets, Total Liabilities summaries dynamically
@@ -392,3 +403,60 @@ with tab_sheet:
         file_name="My_Personal_Net_Worth_Tracker.csv",
         mime="text/csv"
     )
+
+# ==========================================
+# TAB 4: CATEGORY MANAGER PANEL (NEW)
+# ==========================================
+with tab_categories:
+    st.markdown("### ⚙️ Live Account & Category Manager")
+    st.markdown("Easily add new cash accounts, cards, and investments, or remove them from your active balance sheet instantly.")
+    
+    col_add, col_remove = st.columns(2)
+    
+    with col_add:
+        st.markdown("#### ➕ Add New Account/Category")
+        new_name = st.text_input("Name of Account/Asset/Debt (e.g., 'Bitcoin Wallet', 'My Home'):")
+        
+        new_group = st.selectbox(
+            "Account Classification Group:",
+            ["Cash", "Investments", "Retirement/EPF", "Properties", "Other Assets", "Short-Term Debts", "Long-Term Debts", "Other Liabilities"]
+        )
+        
+        if st.button("🚀 Add New Category", use_container_width=True):
+            cleaned_name = new_name.strip()
+            if not cleaned_name:
+                st.error("Please enter a valid category name!")
+            elif cleaned_name in st.session_state.financial_data.index:
+                st.error("An account with this name already exists in your table.")
+            else:
+                # 1. Create a row of zero inputs mapping across all months
+                new_row = pd.Series([0.0] * len(months), index=months, name=cleaned_name)
+                
+                # 2. Add it directly into our persistent DataFrame
+                st.session_state.financial_data = pd.concat([st.session_state.financial_data, pd.DataFrame([new_row])])
+                
+                # 3. Add classification
+                st.session_state.item_types[cleaned_name] = new_group
+                
+                st.success(f"Successfully added '{cleaned_name}' to your dashboard as a {new_group}!")
+                st.rerun()
+                
+    with col_remove:
+        st.markdown("#### 🗑️ Remove Existing Account/Category")
+        
+        # Display list of user's active custom keys
+        available_categories = list(st.session_state.item_types.keys())
+        category_to_delete = st.selectbox("Select Account/Category to Delete:", available_categories)
+        
+        st.warning("⚠️ Warning: Deleting an item will permanently remove it from the sheet and wipe out any of its recorded history!")
+        
+        if st.button("🔥 Permanently Delete Category", use_container_width=True):
+            if category_to_delete:
+                # 1. Remove the key from item classifications
+                st.session_state.item_types.pop(category_to_delete)
+                
+                # 2. Drop the row from the data table
+                st.session_state.financial_data = st.session_state.financial_data.drop(category_to_delete)
+                
+                st.success(f"Successfully deleted '{category_to_delete}' from your tracker.")
+                st.rerun()
