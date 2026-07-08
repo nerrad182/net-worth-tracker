@@ -137,8 +137,24 @@ if "item_types" not in st.session_state:
 # Prepare variables for quick access
 df = st.session_state.financial_data
 
-# Sidebar Controls
-st.sidebar.title("⚙️ Dashboard Controls")
+# --- SIDEBAR CONTROLS & MASTER NAVIGATION ---
+st.sidebar.title("💰 Tracker Navigation")
+
+# Persistent Navigation Option inside the Sidebar!
+selected_tab = st.sidebar.radio(
+    "Choose Active View:",
+    [
+        "🏆 Interactive Dashboard", 
+        "✏️ Update Monthly Figures", 
+        "📋 Spreadsheet Database",
+        "⚙️ Manage Categories"
+    ],
+    index=0,
+    key="sidebar_navigation_menu"
+)
+
+st.sidebar.divider()
+st.sidebar.subheader("⚙️ Dashboard Settings")
 currency = st.sidebar.selectbox("Currency Unit", ["RM", "$", "€", "£"], index=0)
 
 if st.sidebar.button("🔄 Reset to Default Template Data"):
@@ -175,18 +191,11 @@ start_net_worth = net_worth_series[start_month]
 net_worth_growth_abs = current_net_worth - start_net_worth
 net_worth_growth_pct = (net_worth_growth_abs / start_net_worth) * 100 if start_net_worth != 0 else 0
 
-# --- MASTER NAVIGATION TABS ---
-tab_dash, tab_editor, tab_sheet, tab_categories = st.tabs([
-    "🏆 Interactive Dashboard", 
-    "✏️ Update Monthly Figures", 
-    "📋 Spreadsheet Database",
-    "⚙️ Manage Categories"
-], key="main_navigation_tabs")
 
 # ==========================================
-# TAB 1: INTERACTIVE DASHBOARD VIEW
+# PAGE VIEW 1: INTERACTIVE DASHBOARD VIEW
 # ==========================================
-with tab_dash:
+if selected_tab == "🏆 Interactive Dashboard":
     st.markdown("### Financial Overview Tracker")
     
     # Custom Premium Highlight Card Layout
@@ -349,13 +358,13 @@ with tab_dash:
                 st.info("No active Liability values to display.")
 
 # ==========================================
-# TAB 2: MONTH-BY-MONTH DATA EDITOR (GROUPED CATEGORIES)
+# PAGE VIEW 2: MONTH-BY-MONTH DATA EDITOR (GROUPED CATEGORIES)
 # ==========================================
-with tab_editor:
+elif selected_tab == "✏️ Update Monthly Figures":
     st.markdown("### ✏️ Update Financial Entry Logs")
     st.markdown("Your categories are grouped below. Select a month and expand any classification drawer to adjust figures.")
     
-    # 1. Month Picker
+    # 1. Month Picker (Changing this will now NOT bounce you back to the dashboard!)
     selected_month = st.selectbox("Select Target Month to Edit:", months)
     
     st.divider()
@@ -457,9 +466,9 @@ with tab_editor:
             st.rerun()
 
 # ==========================================
-# TAB 3: COMPLETE SPREADSHEET MATRIX VIEW (SORTED BY CATEGORY)
+# PAGE VIEW 3: COMPLETE SPREADSHEET MATRIX VIEW (SORTED BY CATEGORY)
 # ==========================================
-with tab_sheet:
+elif selected_tab == "📋 Spreadsheet Database":
     st.markdown("### 📋 Full Financial Ledger Spreadsheet Matrix")
     st.markdown("Your entire asset portfolio and liabilities organized beautifully by dynamic classes.")
     
@@ -509,9 +518,9 @@ with tab_sheet:
     )
 
 # ==========================================
-# TAB 4: CATEGORY MANAGER PANEL
+# PAGE VIEW 4: CATEGORY MANAGER PANEL
 # ==========================================
-with tab_categories:
+elif selected_tab == "⚙️ Manage Categories":
     st.markdown("### ⚙️ Live Account & Category Manager")
     st.markdown("Easily add new cash accounts, cards, and investments, or remove them from your active balance sheet instantly.")
     
